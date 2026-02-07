@@ -1,7 +1,108 @@
 @import "tailwindcss";
 
-/* Global A11y: Visible Focus Everywhere */
-:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+@layer base {
+  html,
+  body {
+    @apply bg-zinc-950 text-zinc-100;
+  }
+
+  body {
+    @apply antialiased;
+  }
+
+  ::selection {
+    @apply bg-violet-500/30;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-violet-400 ring-offset-2 ring-offset-zinc-950;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg border border-zinc-800 bg-zinc-900/60 shadow-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950;
+  }
+
+  .btn-primary {
+    @apply bg-violet-500 text-white hover:bg-violet-400;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-zinc-100 hover:bg-zinc-800;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100;
+    @apply placeholder:text-zinc-500;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950;
+  }
+
+  .link {
+    @apply text-zinc-100 hover:text-violet-300 underline-offset-4 hover:underline;
+  }
+}
+
+@layer utilities {
+  /* Custom Animation */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.8s ease-out;
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.8s ease-out;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* WCAG: Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-fade-in-up,
+    .animate-float {
+      animation: none !important;
+      transform: none !important;
+    }
+  }
 }
