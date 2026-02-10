@@ -32,7 +32,7 @@ const initialState: BoardState = {
   cardsById: {
     c1: {
       id: "c1",
-      title: "Test responsive board shell",
+      title: "Task #1",
       createdAt: now(),
       updatedAt: now(),
     },
