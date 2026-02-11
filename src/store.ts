@@ -1,10 +1,10 @@
 import { configureStore } from "@reduxjs/toolkit";
-import boardReducer from "./features/board/boardSlice";
+import undoableBoardReducer from "./features/history/undoableBoardReducer";
 import uiReducer from "./features/ui/uiSlice";
 
 export const store = configureStore({
   reducer: {
-    board: boardReducer,
+    board: undoableBoardReducer,
     ui: uiReducer,
   },
 });
