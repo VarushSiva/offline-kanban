@@ -93,7 +93,7 @@ export default function BoardPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              className="icon-btn"
+              className="btn btn-ghost icon-btn"
               onClick={() => {
                 dispatch(undo());
                 dispatch(announce("Undid last action"));
@@ -106,7 +106,7 @@ export default function BoardPage() {
 
             <button
               type="button"
-              className="icon-btn"
+              className="btn btn-ghost icon-btn"
               onClick={() => {
                 dispatch(redo());
                 dispatch(announce("Redid last action"));
