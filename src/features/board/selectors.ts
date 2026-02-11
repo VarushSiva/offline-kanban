@@ -1,15 +1,16 @@
 import type { RootState } from "../../store";
 
-export const selectBoard = (state: RootState) => state.board;
-export const selectSearchQuery = (state: RootState) => state.board.searchQuery;
+export const selectBoardPresent = (state: RootState) => state.board.present;
+export const selectSearchQuery = (state: RootState) =>
+  state.board.present.searchQuery;
 export const selectColumns = (state: RootState) => {
-  const { columnsById, columnOrder } = state.board;
+  const { columnsById, columnOrder } = state.board.present;
   return columnOrder.map((id) => columnsById[id]).filter(Boolean);
 };
 
 export const selectVisibleCardsForColumn =
   (columnId: string) => (state: RootState) => {
-    const { columnsById, cardsById, searchQuery } = state.board;
+    const { columnsById, cardsById, searchQuery } = state.board.present;
     const col = columnsById[columnId];
     if (!col) return [];
 

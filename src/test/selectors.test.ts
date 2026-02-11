@@ -4,15 +4,19 @@ import type { RootState } from "../store";
 function makeState(): RootState {
   return {
     board: {
-      columnsById: {
-        todo: { id: "todo", title: "Todo", cardIds: ["a", "b"] },
+      past: [],
+      future: [],
+      present: {
+        columnsById: {
+          todo: { id: "todo", title: "Todo", cardIds: ["a", "b"] },
+        },
+        columnOrder: ["todo"],
+        cardsById: {
+          a: { id: "a", title: "Write tests", createdAt: 1, updatedAt: 1 },
+          b: { id: "b", title: "Build UI", createdAt: 1, updatedAt: 1 },
+        },
+        searchQuery: "",
       },
-      columnOrder: ["todo"],
-      cardsById: {
-        a: { id: "a", title: "Write tests", createdAt: 1, updatedAt: 1 },
-        b: { id: "b", title: "Build UI", createdAt: 1, updatedAt: 1 },
-      },
-      searchQuery: "",
     },
     ui: { announcement: { text: "", nonce: 0 } },
   };
@@ -26,7 +30,7 @@ test("selector returns all cards when search is empty", () => {
 
 test("selector filters by search query", () => {
   const state = makeState();
-  state.board.searchQuery = "test";
+  state.board.present.searchQuery = "test";
   const cards = selectVisibleCardsForColumn("todo")(state);
   expect(cards).toHaveLength(1);
   expect(cards[0].title).toBe("Write tests");
