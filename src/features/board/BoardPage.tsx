@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { announce } from "../ui/uiSlice";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import {
@@ -6,6 +6,7 @@ import {
   selectSearchQuery,
   selectVisibleCardsForColumn,
 } from "./selectors";
+import { redo, undo } from "../history/undoableBoardReducer";
 import {
   addCard,
   addColumn,
@@ -26,18 +27,118 @@ export default function BoardPage() {
   const dispatch = useAppDispatch();
   const columns = useAppSelector(selectColumns);
   const searchQuery = useAppSelector(selectSearchQuery);
+  const canUndo = useAppSelector((selector) => selector.board.past.length > 0);
+  const canRedo = useAppSelector(
+    (selector) => selector.board.future.length > 0,
+  );
 
   const [newColumnTitle, setNewColumnTitle] = useState("");
+
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      return (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        target.isContentEditable
+      );
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
+
+      const key = e.key.toLowerCase();
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (!mod) return;
+
+      const isUndo = key === "z" && !e.shiftKey;
+      const isRedo = key === "y" || (key === "z" && e.shiftKey);
+
+      if (isUndo) {
+        if (!canUndo) return;
+        e.preventDefault();
+        dispatch(undo());
+        dispatch(announce("Undid last action"));
+      }
+
+      if (isRedo) {
+        if (!canRedo) return;
+        e.preventDefault();
+        dispatch(redo());
+        dispatch(announce("Redid last action"));
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dispatch, canUndo, canRedo]);
 
   return (
     <div className="mx-auto max-w-6xl px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
       <header className="flex flex-col gap-3 sm:gap-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-lg sm:text-xl font-semibold">Offline Kanban</h1>
-            <p className="text-sm text-zinc-400">
-              Mobile-first • Accesssible • Offline Kanban
-            </p>
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h1 className="text-lg sm:text-xl font-semibold">
+                Offline Kanban
+              </h1>
+              <p className="text-sm text-zinc-400">
+                Mobile-first • Accesssible • Offline Kanban
+              </p>
+            </div>
+
+            <div className="flex gap-2 sm:hidden">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  dispatch(undo());
+                  dispatch(announce("Undid last action"));
+                }}
+                disabled={!canUndo}
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  dispatch(redo());
+                  dispatch(announce("Redid last action"));
+                }}
+                disabled={!canRedo}
+              >
+                Redo
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden sm:flex gap-2">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                dispatch(undo());
+                dispatch(announce("Undid last action"));
+              }}
+              disabled={!canUndo}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                dispatch(redo());
+                dispatch(announce("Redid last action"));
+              }}
+              disabled={!canRedo}
+            >
+              Redo
+            </button>
           </div>
 
           <form
