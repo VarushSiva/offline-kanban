@@ -78,71 +78,68 @@ export default function BoardPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
-      <header className="flex flex-col gap-3 sm:gap-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h1 className="text-lg sm:text-xl font-semibold">
-                Offline Kanban
-              </h1>
-              <p className="text-sm text-zinc-400">
-                Mobile-first • Accesssible • Offline Kanban
-              </p>
-            </div>
-
-            <div className="flex gap-2 sm:hidden">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => {
-                  dispatch(undo());
-                  dispatch(announce("Undid last action"));
-                }}
-                disabled={!canUndo}
-              >
-                Undo
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => {
-                  dispatch(redo());
-                  dispatch(announce("Redid last action"));
-                }}
-                disabled={!canRedo}
-              >
-                Redo
-              </button>
-            </div>
+      <header className="card p-3 sm:p-4">
+        {/* Row 1: Title + Undo/Redo */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold truncate">
+              Offline Kanban
+            </h1>
+            <p className="text-sm text-zinc-400">
+              Mobile-first • Accesssible • Offline Kanban
+            </p>
           </div>
 
-          <div className="hidden sm:flex gap-2">
+          <div className="flex gap-2">
             <button
               type="button"
-              className="btn btn-ghost"
+              className="icon-btn"
               onClick={() => {
                 dispatch(undo());
                 dispatch(announce("Undid last action"));
               }}
               disabled={!canUndo}
+              aria-keyshortcuts="Control+Z Meta+Z"
             >
               Undo
             </button>
+
             <button
               type="button"
-              className="btn btn-ghost"
+              className="icon-btn"
               onClick={() => {
                 dispatch(redo());
                 dispatch(announce("Redid last action"));
               }}
               disabled={!canRedo}
+              aria-keyshortcuts="Control+Y Meta+Shift+Z"
             >
               Redo
             </button>
           </div>
+        </div>
+
+        {/* Row 2: Search + Add Column */}
+        <div className="mt-3 grid gap-2 sm:mt-4 sm:grid-cols-2 sm:items-start">
+          <div className="w-full">
+            <label htmlFor="search" className="sr-only">
+              Quick search cards
+            </label>
+            <input
+              type="text"
+              id="search"
+              className="input min-h-10"
+              value={searchQuery}
+              onChange={(e) => dispatch(setSearchQuery(e.target.value))}
+              placeholder="Search cards..."
+            />
+            <p className="mt-1 text-xs text-zinc-400">
+              Tip: search filters titles per column
+            </p>
+          </div>
 
           <form
-            className="flex flex-col sm:flex-row gap-2 sm:items-center"
+            className="flex flex-col sm:flex-row gap-2 sm:justify-end"
             onSubmit={(e) => {
               e.preventDefault();
               const title = newColumnTitle.trim();
@@ -153,41 +150,29 @@ export default function BoardPage() {
               setNewColumnTitle("");
             }}
           >
+            <label htmlFor="new-col" className="sr-only">
+              New column title
+            </label>
             <input
-              className="input sm:w-64"
+              id="new-col"
+              className="input min-h-10 sm:w-64"
               value={newColumnTitle}
               onChange={(e) => setNewColumnTitle(e.target.value)}
               placeholder="New column title..."
             />
-            <button type="submit" className="btn btn-primary min-h-10">
+            <button
+              type="submit"
+              className="btn btn-primary min-h-10 whitespace-nowrap"
+            >
               Add Column
             </button>
           </form>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-          <div className="w-full sm:max-w-md">
-            <label htmlFor="search" className="sr-only">
-              Quick search cards
-            </label>
-            <input
-              id="search"
-              className="input"
-              value={searchQuery}
-              onChange={(e) => dispatch(setSearchQuery(e.target.value))}
-              placeholder="Search cards..."
-            />
-          </div>
-
-          <p className="text-xs text-zinc-400">
-            Tip: search filters titles per column
-          </p>
         </div>
       </header>
 
       {/* Mobile: Horizontal Scroll + Snap */}
       <section
-        className="mt-4 sm:mt-6 flex gap-3 sm:gap-4 overflow-x-auto pb-3 snap-x snap-mandatory, md:grid md:overflow-visible md:pb-0 md:snap-none md:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]"
+        className="mt-4 sm:mt-6 flex gap-3 sm:gap-4 overflow-x-auto pb-3 snap-x snap-mandatory md:grid md:overflow-visible md:pb-0 md:snap-none md:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]"
         aria-label="Kanban board"
       >
         {columns.map((col) => (
@@ -394,7 +379,7 @@ function CardItem({
 
   if (isEditing) {
     return (
-      <li className="rounded-md border border-zinc-800 bg-zinc-900 p-3 motion-safe:animate-fade-in">
+      <li className="rounded-md border border-zinc-700 bg-zinc-900 p-3 motion-safe:animate-fade-in">
         <form
           className="space-y-2"
           onSubmit={(e) => {
@@ -451,7 +436,7 @@ function CardItem({
   }
 
   return (
-    <li className="rounded-md border border-zinc-800 bg-zinc-900 p-3 motion-safe:animate-fade-in">
+    <li className="rounded-md border border-zinc-700 bg-zinc-900 p-3 motion-safe:animate-fade-in">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm wrap-break-word">{title}</p>
