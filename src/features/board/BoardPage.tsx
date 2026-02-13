@@ -356,7 +356,7 @@ export default function BoardPage() {
                 {columnsById[moveState.toColumnId]?.title ?? "column"} (position{" "}
                 {moveState.toIndex + 1})
               </p>
-              <span className="font-semibold">Move state:</span>{" "}
+              <span className="font-semibold">Move:</span>{" "}
               <span className="text-zinc-200">
                 Arrow keys to move • Enter to drop • Esc to cancel
               </span>
@@ -459,7 +459,9 @@ function ColumnView({
   const [draftTitle, setDraftTitle] = useState(title);
 
   return (
-    <div className="card snap-start w-72 sm:w-80 md:w-auto p-3 sm:p-4 motion-safe:animate-fade-in-up">
+    <div
+      className={`card snap-start w-72 sm:w-80 md:w-auto p-3 sm:p-4 motion-safe:animate-fade-in-up ${moveState?.toColumnId === columnId ? "ring-2 ring-violet-500/40" : ""}`}
+    >
       <div className="flex items-start justify-between gap-2">
         {isRenaming ? (
           <form
@@ -524,27 +526,71 @@ function ColumnView({
       <AddCardInline columnTitle={title} onAdd={(t) => onAddCard(t)} />
 
       <ul className="mt-3 space-y-2">
-        {cards.map((card) => {
-          const isBeingMoved = moveState?.cardId === card.id;
-          const shouldFocusMoveButton = focusAfterMoveCardId === card.id;
+        {(() => {
+          const movingId = moveState?.cardId ?? null;
 
-          return (
-            <CardItem
-              key={card.id}
-              cardId={card.id}
-              title={card.title}
-              description={card.description}
-              onDelete={() => onDeleteCard(card.id, card.title)}
-              onSave={(nextTitle, nextDesc) =>
-                onUpdateCard(card.id, nextTitle, nextDesc)
-              }
-              onStartMove={() => onStartMove(card.id)}
-              isBeingMoved={isBeingMoved}
-              shouldFocusMoveButton={shouldFocusMoveButton}
-              onDidFocus={() => onDidFocusCard(card.id)}
-            />
-          );
-        })}
+          // Remove moving card from columns visibility
+          const visibleCards = movingId
+            ? cards.filter((card) => card.id !== movingId)
+            : cards;
+          const isTargetColumn = moveState?.toColumnId === columnId;
+
+          // Build Ghost placeholder
+          const items: Array<
+            | { type: "card"; id: string; title: string; description?: string }
+            | { type: "placeholder"; key: string }
+          > = visibleCards.map((card) => ({
+            type: "card",
+            id: card.id,
+            title: card.title,
+            description: card.description,
+          }));
+
+          if (moveState && isTargetColumn) {
+            const insertAt = Math.max(
+              0,
+              Math.min(moveState.toIndex, items.length),
+            );
+            items.splice(insertAt, 0, {
+              type: "placeholder",
+              key: `ph-${columnId}-${insertAt}`,
+            });
+          }
+
+          return items.map((item) => {
+            if (item.type === "placeholder") {
+              return (
+                <li
+                  key={item.key}
+                  aria-hidden="true"
+                  className="rounded-md border-2 border-dashed border-violet-500/50 bg-violet-500/10 p-3"
+                >
+                  <p className="text-xs text-violet-200">Drop here</p>
+                </li>
+              );
+            }
+
+            const isBeingMoved = moveState?.cardId === item.id;
+            const shouldFocusMoveButton = focusAfterMoveCardId === item.id;
+
+            return (
+              <CardItem
+                key={item.id}
+                cardId={item.id}
+                title={item.title}
+                description={item.description}
+                onDelete={() => onDeleteCard(item.id, item.title)}
+                onSave={(nextTitle, nextDesc) =>
+                  onUpdateCard(item.id, nextTitle, nextDesc)
+                }
+                onStartMove={() => onStartMove(item.id)}
+                isBeingMoved={isBeingMoved}
+                shouldFocusMoveButton={shouldFocusMoveButton}
+                onDidFocus={() => onDidFocusCard(item.id)}
+              />
+            );
+          });
+        })()}
       </ul>
     </div>
   );
