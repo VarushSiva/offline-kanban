@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { announce } from "../ui/uiSlice";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import {
@@ -17,6 +17,7 @@ import {
   updateCard,
   moveCard,
 } from "./boardSlice";
+import { getMovePayloadFromDrag } from "./dndHelpers";
 import type { RootState } from "../../store";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -24,7 +25,23 @@ import {
   faTrashCan,
   faXmark,
   faArrowsUpDownLeftRight,
+  faGripVertical,
 } from "@fortawesome/free-solid-svg-icons";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  useDroppable,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export default function BoardPage() {
   const dispatch = useAppDispatch();
@@ -51,7 +68,16 @@ export default function BoardPage() {
   const [focusAfterMoveCardId, setFocusAfterMoveCardId] = useState<
     string | null
   >(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
   const moveRef = useRef<HTMLDivElement | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  // Disabled mouse Drag and Drop when search is active or keyboard move mode is active
+  const isDnDEnabled = !moveState && searchQuery.trim() === "";
 
   const findCardLocation = (cardId: string) => {
     for (const colId of columnOrder) {
@@ -351,11 +377,11 @@ export default function BoardPage() {
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm">
-              <p className="text-zinc-200">
+              <span className="text-zinc-200">
                 {cardsById[moveState.cardId]?.title ?? "Card"} →{" "}
                 {columnsById[moveState.toColumnId]?.title ?? "column"} (position{" "}
                 {moveState.toIndex + 1})
-              </p>
+              </span>
               <span className="font-semibold">Move:</span>{" "}
               <span className="text-zinc-200">
                 Arrow keys to move • Enter to drop • Esc to cancel
@@ -373,51 +399,95 @@ export default function BoardPage() {
         </div>
       ) : null}
 
-      {/* Mobile: Horizontal Scroll + Snap */}
-      <section
-        className="mt-4 sm:mt-6 flex gap-3 sm:gap-4 overflow-x-auto pb-3 snap-x snap-mandatory md:grid md:overflow-visible md:pb-0 md:snap-none md:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]"
-        aria-label="Kanban board"
-      >
-        {columns.map((col) => (
-          <ColumnView
-            key={col.id}
-            columnId={col.id}
-            title={col.title}
-            onRename={(title) => {
-              dispatch(renameColumn({ columnId: col.id, title }));
-              dispatch(announce(`Renamed column to ${title}`));
-            }}
-            onDelete={() => {
-              const ok = window.confirm(
-                `Delete column "${col.title}" and its cards?`,
-              );
-              if (!ok) return;
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e) => {
+          if (!isDnDEnabled) return;
+          setActiveDragId(String(e.active.id));
+        }}
+        onDragEnd={(e) => {
+          const activeId = String(e.active.id);
+          const overId = e.over ? String(e.over.id) : null;
 
-              dispatch(deleteColumn({ columnId: col.id }));
-              dispatch(announce(`Deleted column ${col.title}`));
-            }}
-            onAddCard={(title) => {
-              dispatch(addCard({ columnId: col.id, title }));
-              dispatch(announce(`Added card ${title} to ${col.title}`));
-            }}
-            onDeleteCard={(cardId, cardTitle) => {
-              dispatch(deleteCard({ columnId: col.id, cardId }));
-              dispatch(announce(`Deleted card ${cardTitle}`));
-            }}
-            onUpdateCard={(cardId, title, description) => {
-              dispatch(updateCard({ cardId, title, description }));
-              dispatch(announce(`Update card ${title}`));
-            }}
-            moveState={moveState}
-            onStartMove={(cardId) => startMove(cardId)}
-            focusAfterMoveCardId={focusAfterMoveCardId}
-            onDidFocusCard={(cardId) => {
-              if (focusAfterMoveCardId === cardId)
-                setFocusAfterMoveCardId(null);
-            }}
-          />
-        ))}
-      </section>
+          setActiveDragId(null);
+
+          if (!isDnDEnabled) return;
+          if (!overId || overId === activeId) return;
+
+          const payload = getMovePayloadFromDrag(
+            boardPresent,
+            activeId,
+            overId,
+          );
+          if (!payload) return;
+
+          dispatch(moveCard(payload));
+          dispatch(
+            announce(
+              `Moved ${cardsById[activeId]?.title ?? "Card"} to ${columnsById[payload.toColumnId]?.title ?? "column"}.`,
+            ),
+          );
+        }}
+        onDragCancel={() => setActiveDragId(null)}
+      >
+        {/* Mobile: Horizontal Scroll + Snap */}
+        <section
+          className="mt-4 sm:mt-6 flex gap-3 sm:gap-4 overflow-x-auto pb-3 snap-x snap-mandatory md:grid md:overflow-visible md:pb-0 md:snap-none md:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]"
+          aria-label="Kanban board"
+        >
+          {columns.map((col) => (
+            <ColumnView
+              key={col.id}
+              columnId={col.id}
+              title={col.title}
+              onRename={(title) => {
+                dispatch(renameColumn({ columnId: col.id, title }));
+                dispatch(announce(`Renamed column to ${title}`));
+              }}
+              onDelete={() => {
+                const ok = window.confirm(
+                  `Delete column "${col.title}" and its cards?`,
+                );
+                if (!ok) return;
+
+                dispatch(deleteColumn({ columnId: col.id }));
+                dispatch(announce(`Deleted column ${col.title}`));
+              }}
+              onAddCard={(title) => {
+                dispatch(addCard({ columnId: col.id, title }));
+                dispatch(announce(`Added card ${title} to ${col.title}`));
+              }}
+              onDeleteCard={(cardId, cardTitle) => {
+                dispatch(deleteCard({ columnId: col.id, cardId }));
+                dispatch(announce(`Deleted card ${cardTitle}`));
+              }}
+              onUpdateCard={(cardId, title, description) => {
+                dispatch(updateCard({ cardId, title, description }));
+                dispatch(announce(`Update card ${title}`));
+              }}
+              moveState={moveState}
+              onStartMove={(cardId) => startMove(cardId)}
+              focusAfterMoveCardId={focusAfterMoveCardId}
+              onDidFocusCard={(cardId) => {
+                if (focusAfterMoveCardId === cardId)
+                  setFocusAfterMoveCardId(null);
+              }}
+              isDnDEnabled={isDnDEnabled}
+            />
+          ))}
+        </section>
+
+        <DragOverlay>
+          {activeDragId ? (
+            <div className="rounded-md border border-zinc-700 bg-zinc-900 p-3 shadow-lg">
+              <p className="text-sm font-semibold text-zinc-100">
+                {cardsById[activeDragId]?.title ?? "Card"}
+              </p>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
@@ -434,6 +504,7 @@ function ColumnView({
   onStartMove,
   focusAfterMoveCardId,
   onDidFocusCard,
+  isDnDEnabled,
 }: {
   columnId: string;
   title: string;
@@ -451,16 +522,23 @@ function ColumnView({
   onStartMove: (cardId: string) => void;
   focusAfterMoveCardId: string | null;
   onDidFocusCard: (cardId: string) => void;
+  isDnDEnabled: boolean;
 }) {
   const cards = useAppSelector(
     useMemo(() => selectVisibleCardsForColumn(columnId), [columnId]),
   );
+  const { setNodeRef: setColumnDropRef, isOver } = useDroppable({
+    id: columnId,
+    disabled: !isDnDEnabled,
+  });
+
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
 
   return (
     <div
-      className={`card snap-start w-72 sm:w-80 md:w-auto p-3 sm:p-4 motion-safe:animate-fade-in-up ${moveState?.toColumnId === columnId ? "ring-2 ring-violet-500/40" : ""}`}
+      ref={setColumnDropRef}
+      className={`card snap-start w-72 sm:w-80 md:w-auto p-3 sm:p-4 motion-safe:animate-fade-in-up ${moveState?.toColumnId === columnId ? "ring-2 ring-violet-500/40" : ""} ${isOver && isDnDEnabled ? "ring-2 ring-emerald-500/40" : ""}`}
     >
       <div className="flex items-start justify-between gap-2">
         {isRenaming ? (
@@ -525,73 +603,109 @@ function ColumnView({
 
       <AddCardInline columnTitle={title} onAdd={(t) => onAddCard(t)} />
 
-      <ul className="mt-3 space-y-2">
-        {(() => {
-          const movingId = moveState?.cardId ?? null;
-
-          // Remove moving card from columns visibility
-          const visibleCards = movingId
-            ? cards.filter((card) => card.id !== movingId)
-            : cards;
-          const isTargetColumn = moveState?.toColumnId === columnId;
-
-          // Build Ghost placeholder
-          const items: Array<
-            | { type: "card"; id: string; title: string; description?: string }
-            | { type: "placeholder"; key: string }
-          > = visibleCards.map((card) => ({
-            type: "card",
-            id: card.id,
-            title: card.title,
-            description: card.description,
-          }));
-
-          if (moveState && isTargetColumn) {
-            const insertAt = Math.max(
-              0,
-              Math.min(moveState.toIndex, items.length),
-            );
-            items.splice(insertAt, 0, {
-              type: "placeholder",
-              key: `ph-${columnId}-${insertAt}`,
-            });
-          }
-
-          return items.map((item) => {
-            if (item.type === "placeholder") {
-              return (
-                <li
-                  key={item.key}
-                  aria-hidden="true"
-                  className="rounded-md border-2 border-dashed border-violet-500/50 bg-violet-500/10 p-3"
-                >
-                  <p className="text-xs text-violet-200">Drop here</p>
-                </li>
-              );
-            }
-
-            const isBeingMoved = moveState?.cardId === item.id;
-            const shouldFocusMoveButton = focusAfterMoveCardId === item.id;
+      <SortableContext
+        items={cards.map((card) => card.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <ul className="mt-3 space-y-2" data-colid={columnId}>
+          {cards.map((card) => {
+            const isBeingMoved = moveState?.cardId === card.id;
+            const shouldFocusMoveButton = focusAfterMoveCardId === card.id;
 
             return (
-              <CardItem
-                key={item.id}
-                cardId={item.id}
-                title={item.title}
-                description={item.description}
-                onDelete={() => onDeleteCard(item.id, item.title)}
+              <SortableCardItem
+                key={card.id}
+                cardId={card.id}
+                title={card.title}
+                description={card.description}
+                onDelete={() => onDeleteCard(card.id, card.title)}
                 onSave={(nextTitle, nextDesc) =>
-                  onUpdateCard(item.id, nextTitle, nextDesc)
+                  onUpdateCard(card.id, nextTitle, nextDesc)
                 }
-                onStartMove={() => onStartMove(item.id)}
+                onStartMove={() => onStartMove(card.id)}
                 isBeingMoved={isBeingMoved}
                 shouldFocusMoveButton={shouldFocusMoveButton}
-                onDidFocus={() => onDidFocusCard(item.id)}
+                onDidFocus={() => onDidFocusCard(card.id)}
+                isDnDEnabled={isDnDEnabled}
+                columnId={columnId}
               />
             );
-          });
-        })()}
-      </ul>
+          })}
+        </ul>
+
+        {/* <ul className="mt-3 space-y-2">
+          {(() => {
+            const movingId = moveState?.cardId ?? null;
+
+            // Remove moving card from columns visibility
+            const visibleCards = movingId
+              ? cards.filter((card) => card.id !== movingId)
+              : cards;
+            const isTargetColumn = moveState?.toColumnId === columnId;
+
+            // Build Ghost placeholder
+            const items: Array<
+              | {
+                  type: "card";
+                  id: string;
+                  title: string;
+                  description?: string;
+                }
+              | { type: "placeholder"; key: string }
+            > = visibleCards.map((card) => ({
+              type: "card",
+              id: card.id,
+              title: card.title,
+              description: card.description,
+            }));
+
+            if (moveState && isTargetColumn) {
+              const insertAt = Math.max(
+                0,
+                Math.min(moveState.toIndex, items.length),
+              );
+              items.splice(insertAt, 0, {
+                type: "placeholder",
+                key: `ph-${columnId}-${insertAt}`,
+              });
+            }
+
+            return items.map((item) => {
+              if (item.type === "placeholder") {
+                return (
+                  <li
+                    key={item.key}
+                    aria-hidden="true"
+                    className="rounded-md border-2 border-dashed border-violet-500/50 bg-violet-500/10 p-3"
+                  >
+                    <p className="text-xs text-violet-200">Drop here</p>
+                  </li>
+                );
+              }
+
+              const isBeingMoved = moveState?.cardId === item.id;
+              const shouldFocusMoveButton = focusAfterMoveCardId === item.id;
+
+              return (
+                <CardItem
+                  key={item.id}
+                  cardId={item.id}
+                  title={item.title}
+                  description={item.description}
+                  onDelete={() => onDeleteCard(item.id, item.title)}
+                  onSave={(nextTitle, nextDesc) =>
+                    onUpdateCard(item.id, nextTitle, nextDesc)
+                  }
+                  onStartMove={() => onStartMove(item.id)}
+                  isBeingMoved={isBeingMoved}
+                  shouldFocusMoveButton={shouldFocusMoveButton}
+                  onDidFocus={() => onDidFocusCard(item.id)}
+                />
+              );
+            });
+          })()}
+        </ul> */}
+      </SortableContext>
     </div>
   );
 }
@@ -648,6 +762,7 @@ function CardItem({
   isBeingMoved,
   shouldFocusMoveButton,
   onDidFocus,
+  dnd,
 }: {
   cardId: string;
   title: string;
@@ -658,6 +773,15 @@ function CardItem({
   isBeingMoved: boolean;
   shouldFocusMoveButton: boolean;
   onDidFocus: () => void;
+  dnd?: {
+    attributes: React.HTMLAttributes<HTMLLIElement>;
+    listeners: any;
+    setNodeRef: (node: HTMLLIElement | null) => void;
+    setActivatorNodeRef: (node: HTMLButtonElement | null) => void;
+    style: React.CSSProperties;
+    isDragging: boolean;
+    isEnabled: boolean;
+  };
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
@@ -731,7 +855,10 @@ function CardItem({
 
   return (
     <li
-      className={`rounded-md border bg-zinc-900 p-3 motion-safe:animate-fade-in ${isBeingMoved ? "border-violet-500/60 bg-violet-500/10" : "border-zinc-700"}`}
+      ref={dnd?.setNodeRef}
+      style={dnd?.style}
+      {...(dnd?.attributes ?? {})}
+      className={`rounded-md border bg-zinc-900 p-3 motion-safe:animate-fade-in ${isBeingMoved ? "border-violet-500/60 bg-violet-500/10" : "border-zinc-700"} ${dnd?.isDragging ? "opacity-70" : ""}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -744,6 +871,16 @@ function CardItem({
         </div>
 
         <div className="flex gap-1">
+          <button
+            type="button"
+            className="btn btn-ghost px-2 py-1 min-h-8 cursor-grab active:cursor-grabbing disabled:cursor-not-allowed"
+            aria-label={`Drag card ${title}`}
+            ref={dnd?.setActivatorNodeRef}
+            {...(dnd?.listeners ?? {})}
+            disabled={!dnd?.isEnabled}
+          >
+            <FontAwesomeIcon icon={faGripVertical} />
+          </button>
           <button
             type="button"
             className="btn btn-ghost px-2 py-1 min-h-8"
@@ -777,5 +914,49 @@ function CardItem({
         </div>
       </div>
     </li>
+  );
+}
+
+function SortableCardItem({
+  cardId,
+  isDnDEnabled,
+  ...props
+}: {
+  cardId: string;
+  isDnDEnabled: boolean;
+  columnId: string;
+} & Omit<React.ComponentProps<typeof CardItem>, "dnd">) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: cardId,
+    disabled: !isDnDEnabled,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <CardItem
+      {...props}
+      cardId={cardId}
+      dnd={{
+        attributes,
+        listeners,
+        setNodeRef,
+        setActivatorNodeRef,
+        style,
+        isDragging,
+        isEnabled: isDnDEnabled,
+      }}
+    />
   );
 }
