@@ -48,6 +48,13 @@ type AddCardPayload = { columnId: Id; title: string };
 type UpdateCardPayload = { cardId: Id; title: string; description?: string };
 type DeleteCardPayload = { columnId: Id; cardId: Id };
 
+type MoveCardPayload = {
+  cardId: string;
+  fromColumnId: string;
+  toColumnId: string;
+  toIndex: number;
+};
+
 const boardSlice = createSlice({
   name: "board",
   initialState,
@@ -108,6 +115,22 @@ const boardSlice = createSlice({
       col.cardIds = col.cardIds.filter((id) => id !== action.payload.cardId);
       delete state.cardsById[action.payload.cardId];
     },
+
+    moveCard: (state, action: PayloadAction<MoveCardPayload>) => {
+      const { cardId, fromColumnId, toColumnId, toIndex } = action.payload;
+
+      const fromCol = state.columnsById[fromColumnId];
+      const toCol = state.columnsById[toColumnId];
+
+      if (!fromCol || !toCol) return;
+
+      // Remove from source
+      fromCol.cardIds = fromCol.cardIds.filter((id) => id !== cardId);
+
+      // Insert into destination
+      const clampedIndex = Math.max(0, Math.min(toIndex, toCol.cardIds.length));
+      toCol.cardIds.splice(clampedIndex, 0, cardId);
+    },
   },
 });
 
@@ -119,6 +142,7 @@ export const {
   addCard,
   updateCard,
   deleteCard,
+  moveCard,
 } = boardSlice.actions;
 
 export default boardSlice.reducer;

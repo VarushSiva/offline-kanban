@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { announce } from "../ui/uiSlice";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import {
@@ -15,12 +15,15 @@ import {
   renameColumn,
   setSearchQuery,
   updateCard,
+  moveCard,
 } from "./boardSlice";
+import type { RootState } from "../../store";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPencil,
   faTrashCan,
   faXmark,
+  faArrowsUpDownLeftRight,
 } from "@fortawesome/free-solid-svg-icons";
 
 export default function BoardPage() {
@@ -31,8 +34,95 @@ export default function BoardPage() {
   const canRedo = useAppSelector(
     (selector) => selector.board.future.length > 0,
   );
+  const boardPresent = useAppSelector(
+    (state: RootState) => state.board.present,
+  );
+  const { columnsById, columnOrder, cardsById } = boardPresent;
+
+  type MoveState = null | {
+    cardId: string;
+    fromColumnId: string;
+    toColumnId: string;
+    toIndex: number;
+  };
 
   const [newColumnTitle, setNewColumnTitle] = useState("");
+  const [moveState, setMoveState] = useState<MoveState>(null);
+  const [focusAfterMoveCardId, setFocusAfterMoveCardId] = useState<
+    string | null
+  >(null);
+  const moveRef = useRef<HTMLDivElement | null>(null);
+
+  const findCardLocation = (cardId: string) => {
+    for (const colId of columnOrder) {
+      const col = columnsById[colId];
+      const index = col.cardIds.indexOf(cardId);
+      if (index !== -1) return { columnId: colId, index: index };
+    }
+    return null;
+  };
+
+  const startMove = (cardId: string) => {
+    const location = findCardLocation(cardId);
+    if (!location) return;
+
+    const cardTitle = cardsById[cardId]?.title ?? "Card";
+    const colTite = columnsById[location.columnId]?.title ?? "column";
+
+    const destinationIds = columnsById[location.columnId].cardIds.filter(
+      (id) => id !== cardId,
+    );
+    const toIndex = Math.min(location.index, destinationIds.length);
+
+    setMoveState({
+      cardId,
+      fromColumnId: location.columnId,
+      toColumnId: location.columnId,
+      toIndex,
+    });
+
+    dispatch(
+      announce(
+        `Picked up ${cardTitle} from ${colTite}. Use arrow keys to move. Press Enter to drop, Escape to cancel.`,
+      ),
+    );
+  };
+
+  const cancelMove = () => {
+    if (!moveState) return;
+
+    const cardTitle = cardsById[moveState.cardId]?.title ?? "Card";
+    setMoveState(null);
+    dispatch(announce(`Cancelled moving ${cardTitle}.`));
+    setFocusAfterMoveCardId(moveState.cardId);
+  };
+
+  const dropMove = () => {
+    if (!moveState) return;
+
+    const cardTitle = cardsById[moveState.cardId]?.title ?? "Card";
+    const destinationTitle =
+      columnsById[moveState.toColumnId]?.title ?? "column";
+
+    dispatch(
+      moveCard({
+        cardId: moveState.cardId,
+        fromColumnId: moveState.fromColumnId,
+        toColumnId: moveState.toColumnId,
+        toIndex: moveState.toIndex,
+      }),
+    );
+
+    dispatch(announce(`Moved ${cardTitle} to ${destinationTitle}.`));
+    setFocusAfterMoveCardId(moveState.cardId);
+    setMoveState(null);
+  };
+
+  useEffect(() => {
+    if (!moveState) return;
+
+    moveRef.current?.focus();
+  }, [moveState]);
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
@@ -48,6 +138,89 @@ export default function BoardPage() {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
+
+      if (moveState) {
+        const key = e.key;
+
+        if (key === "Escape") {
+          e.preventDefault();
+          cancelMove();
+          return;
+        }
+
+        if (key === "Enter" || key === " " || key === "Spacebar") {
+          e.preventDefault();
+          dropMove();
+          return;
+        }
+
+        const currentColIndex = columnOrder.indexOf(moveState.toColumnId);
+
+        const getDestinationIds = (colId: string) => {
+          const col = columnsById[colId];
+          if (!col) return [];
+
+          return col.cardIds.filter((id) => id !== moveState.cardId);
+        };
+
+        if (key === "ArrowLeft") {
+          e.preventDefault();
+          const nextIndex = Math.max(0, currentColIndex - 1);
+          const nextColId = columnOrder[nextIndex];
+          const destinationIds = getDestinationIds(nextColId);
+
+          setMoveState({
+            ...moveState,
+            toColumnId: nextColId,
+            toIndex: Math.min(moveState.toIndex, destinationIds.length),
+          });
+
+          dispatch(
+            announce(`Target column ${columnsById[nextColId]?.title ?? ""}`),
+          );
+          return;
+        }
+
+        if (key === "ArrowRight") {
+          e.preventDefault();
+          const nextIndex = Math.min(
+            columnOrder.length - 1,
+            currentColIndex + 1,
+          );
+          const nextColId = columnOrder[nextIndex];
+          const destinationIds = getDestinationIds(nextColId);
+
+          setMoveState({
+            ...moveState,
+            toColumnId: nextColId,
+            toIndex: Math.min(moveState.toIndex, destinationIds.length),
+          });
+
+          dispatch(
+            announce(`Target column ${columnsById[nextColId]?.title ?? ""}`),
+          );
+          return;
+        }
+
+        if (key === "ArrowUp") {
+          e.preventDefault();
+          setMoveState({
+            ...moveState,
+            toIndex: Math.max(0, moveState.toIndex - 1),
+          });
+          return;
+        }
+
+        if (key === "ArrowDown") {
+          e.preventDefault();
+          const destinationIds = getDestinationIds(moveState.toColumnId);
+          setMoveState({
+            ...moveState,
+            toIndex: Math.min(destinationIds.length, moveState.toIndex + 1),
+          });
+          return;
+        }
+      }
 
       const key = e.key.toLowerCase();
       const mod = e.ctrlKey || e.metaKey;
@@ -74,7 +247,7 @@ export default function BoardPage() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, canUndo, canRedo]);
+  }, [dispatch, canUndo, canRedo, moveState, columnOrder, columnsById]);
 
   return (
     <div className="mx-auto max-w-6xl px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
@@ -170,6 +343,36 @@ export default function BoardPage() {
         </div>
       </header>
 
+      {moveState ? (
+        <div
+          ref={moveRef}
+          tabIndex={-1}
+          className="mt-3 card p-3 sm:p-4 border-violet-500/40 bg-violet-500/10"
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm">
+              <p className="text-zinc-200">
+                {cardsById[moveState.cardId]?.title ?? "Card"} →{" "}
+                {columnsById[moveState.toColumnId]?.title ?? "column"} (position{" "}
+                {moveState.toIndex + 1})
+              </p>
+              <span className="font-semibold">Move state:</span>{" "}
+              <span className="text-zinc-200">
+                Arrow keys to move • Enter to drop • Esc to cancel
+              </span>
+            </p>
+
+            <button
+              type="button"
+              className="btn btn-ghost min-h-10"
+              onClick={cancelMove}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Mobile: Horizontal Scroll + Snap */}
       <section
         className="mt-4 sm:mt-6 flex gap-3 sm:gap-4 overflow-x-auto pb-3 snap-x snap-mandatory md:grid md:overflow-visible md:pb-0 md:snap-none md:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]"
@@ -205,6 +408,13 @@ export default function BoardPage() {
               dispatch(updateCard({ cardId, title, description }));
               dispatch(announce(`Update card ${title}`));
             }}
+            moveState={moveState}
+            onStartMove={(cardId) => startMove(cardId)}
+            focusAfterMoveCardId={focusAfterMoveCardId}
+            onDidFocusCard={(cardId) => {
+              if (focusAfterMoveCardId === cardId)
+                setFocusAfterMoveCardId(null);
+            }}
           />
         ))}
       </section>
@@ -220,6 +430,10 @@ function ColumnView({
   onAddCard,
   onDeleteCard,
   onUpdateCard,
+  moveState,
+  onStartMove,
+  focusAfterMoveCardId,
+  onDidFocusCard,
 }: {
   columnId: string;
   title: string;
@@ -228,6 +442,15 @@ function ColumnView({
   onAddCard: (title: string) => void;
   onDeleteCard: (cardId: string, cardTitle: string) => void;
   onUpdateCard: (cardId: string, title: string, description?: string) => void;
+  moveState: null | {
+    cardId: string;
+    fromColumnId: string;
+    toColumnId: string;
+    toIndex: number;
+  };
+  onStartMove: (cardId: string) => void;
+  focusAfterMoveCardId: string | null;
+  onDidFocusCard: (cardId: string) => void;
 }) {
   const cards = useAppSelector(
     useMemo(() => selectVisibleCardsForColumn(columnId), [columnId]),
@@ -301,18 +524,27 @@ function ColumnView({
       <AddCardInline columnTitle={title} onAdd={(t) => onAddCard(t)} />
 
       <ul className="mt-3 space-y-2">
-        {cards.map((card) => (
-          <CardItem
-            key={card.id}
-            cardId={card.id}
-            title={card.title}
-            description={card.description}
-            onDelete={() => onDeleteCard(card.id, card.title)}
-            onSave={(nextTitle, nextDesc) =>
-              onUpdateCard(card.id, nextTitle, nextDesc)
-            }
-          />
-        ))}
+        {cards.map((card) => {
+          const isBeingMoved = moveState?.cardId === card.id;
+          const shouldFocusMoveButton = focusAfterMoveCardId === card.id;
+
+          return (
+            <CardItem
+              key={card.id}
+              cardId={card.id}
+              title={card.title}
+              description={card.description}
+              onDelete={() => onDeleteCard(card.id, card.title)}
+              onSave={(nextTitle, nextDesc) =>
+                onUpdateCard(card.id, nextTitle, nextDesc)
+              }
+              onStartMove={() => onStartMove(card.id)}
+              isBeingMoved={isBeingMoved}
+              shouldFocusMoveButton={shouldFocusMoveButton}
+              onDidFocus={() => onDidFocusCard(card.id)}
+            />
+          );
+        })}
       </ul>
     </div>
   );
@@ -366,16 +598,32 @@ function CardItem({
   description,
   onDelete,
   onSave,
+  onStartMove,
+  isBeingMoved,
+  shouldFocusMoveButton,
+  onDidFocus,
 }: {
   cardId: string;
   title: string;
   description?: string;
   onDelete: () => void;
   onSave: (title: string, description?: string) => void;
+  onStartMove: () => void;
+  isBeingMoved: boolean;
+  shouldFocusMoveButton: boolean;
+  onDidFocus: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftDesc, setDraftDesc] = useState(description ?? "");
+
+  const moveBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!shouldFocusMoveButton) return;
+    moveBtnRef.current?.focus();
+    onDidFocus();
+  }, [shouldFocusMoveButton, onDidFocus]);
 
   if (isEditing) {
     return (
@@ -436,7 +684,9 @@ function CardItem({
   }
 
   return (
-    <li className="rounded-md border border-zinc-700 bg-zinc-900 p-3 motion-safe:animate-fade-in">
+    <li
+      className={`rounded-md border bg-zinc-900 p-3 motion-safe:animate-fade-in ${isBeingMoved ? "border-violet-500/60 bg-violet-500/10" : "border-zinc-700"}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm wrap-break-word">{title}</p>
@@ -459,6 +709,16 @@ function CardItem({
             aria-label={`Edit card ${title}`}
           >
             <FontAwesomeIcon icon={faPencil} />
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost px-2 py-1 min-h-8"
+            onClick={onStartMove}
+            aria-label={`Move card ${title}`}
+            ref={moveBtnRef}
+            disabled={isBeingMoved}
+          >
+            <FontAwesomeIcon icon={faArrowsUpDownLeftRight} />
           </button>
           <button
             type="button"
