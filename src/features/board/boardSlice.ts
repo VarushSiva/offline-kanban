@@ -146,3 +146,5 @@ export const {
 } = boardSlice.actions;
 
 export default boardSlice.reducer;
+
+export type BoardPresentState = typeof initialState;
