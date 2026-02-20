@@ -142,6 +142,31 @@ export default function BoardPage() {
     setMoveState(null);
   };
 
+  const focusCardMoveButton = (cardId: string) => {
+    // After reducer runs, need one paint to render the moved card into new col
+    window.requestAnimationFrame(() => {
+      const element = document.getElementById(`card-${cardId}-move`);
+      if (element instanceof HTMLButtonElement) element.focus();
+    });
+  };
+
+  const focusNextCard = (columnId: string, deletedCardId: string) => {
+    const col = columnsById[columnId];
+    if (!col) return null;
+
+    const index = col.cardIds.indexOf(deletedCardId);
+
+    // Try next card
+    const nextId = col.cardIds[index + 1];
+    if (nextId) return nextId;
+
+    // Try prev card
+    const prevId = col.cardIds[index - 1];
+    if (prevId) return prevId;
+
+    return null;
+  };
+
   useEffect(() => {
     if (!moveState) return;
 
@@ -443,6 +468,7 @@ export default function BoardPage() {
               `Moved ${cardsById[activeId]?.title ?? "Card"} to ${columnsById[payload.toColumnId]?.title ?? "column"}.`,
             ),
           );
+          focusCardMoveButton(activeId);
         }}
         onDragCancel={() => setActiveDragId(null)}
       >
@@ -474,8 +500,25 @@ export default function BoardPage() {
                 dispatch(announce(`Added card ${title} to ${col.title}`));
               }}
               onDeleteCard={(cardId, cardTitle) => {
+                const nextFocusId = focusNextCard(col.id, cardId);
+
                 dispatch(deleteCard({ columnId: col.id, cardId }));
                 dispatch(announce(`Deleted card ${cardTitle}`));
+
+                if (nextFocusId) {
+                  focusCardMoveButton(nextFocusId);
+                } else {
+                  window.requestAnimationFrame(() => {
+                    const element = document.getElementById(
+                      `col-${col.id}-title`,
+                    );
+                    if (
+                      element instanceof HTMLInputElement ||
+                      element instanceof HTMLElement
+                    )
+                      element.focus();
+                  });
+                }
               }}
               onUpdateCard={(cardId, title, description) => {
                 dispatch(updateCard({ cardId, title, description }));
@@ -588,7 +631,13 @@ function ColumnView({
           </form>
         ) : (
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold truncate">{title}</h2>
+            <h2
+              className="text-sm font-semibold truncate"
+              id={`col-${columnId}-title`}
+              tabIndex={-1}
+            >
+              {title}
+            </h2>
             <p className="text-xs text-zinc-400">{cards.length} shown</p>
           </div>
         )}
@@ -647,79 +696,6 @@ function ColumnView({
             );
           })}
         </ul>
-
-        {/* <ul className="mt-3 space-y-2">
-          {(() => {
-            const movingId = moveState?.cardId ?? null;
-
-            // Remove moving card from columns visibility
-            const visibleCards = movingId
-              ? cards.filter((card) => card.id !== movingId)
-              : cards;
-            const isTargetColumn = moveState?.toColumnId === columnId;
-
-            // Build Ghost placeholder
-            const items: Array<
-              | {
-                  type: "card";
-                  id: string;
-                  title: string;
-                  description?: string;
-                }
-              | { type: "placeholder"; key: string }
-            > = visibleCards.map((card) => ({
-              type: "card",
-              id: card.id,
-              title: card.title,
-              description: card.description,
-            }));
-
-            if (moveState && isTargetColumn) {
-              const insertAt = Math.max(
-                0,
-                Math.min(moveState.toIndex, items.length),
-              );
-              items.splice(insertAt, 0, {
-                type: "placeholder",
-                key: `ph-${columnId}-${insertAt}`,
-              });
-            }
-
-            return items.map((item) => {
-              if (item.type === "placeholder") {
-                return (
-                  <li
-                    key={item.key}
-                    aria-hidden="true"
-                    className="rounded-md border-2 border-dashed border-violet-500/50 bg-violet-500/10 p-3"
-                  >
-                    <p className="text-xs text-violet-200">Drop here</p>
-                  </li>
-                );
-              }
-
-              const isBeingMoved = moveState?.cardId === item.id;
-              const shouldFocusMoveButton = focusAfterMoveCardId === item.id;
-
-              return (
-                <CardItem
-                  key={item.id}
-                  cardId={item.id}
-                  title={item.title}
-                  description={item.description}
-                  onDelete={() => onDeleteCard(item.id, item.title)}
-                  onSave={(nextTitle, nextDesc) =>
-                    onUpdateCard(item.id, nextTitle, nextDesc)
-                  }
-                  onStartMove={() => onStartMove(item.id)}
-                  isBeingMoved={isBeingMoved}
-                  shouldFocusMoveButton={shouldFocusMoveButton}
-                  onDidFocus={() => onDidFocusCard(item.id)}
-                />
-              );
-            });
-          })()}
-        </ul> */}
       </SortableContext>
     </div>
   );
@@ -911,6 +887,7 @@ function CardItem({
           <button
             type="button"
             className="btn btn-ghost px-2 py-1 min-h-8"
+            id={`card-${cardId}-move`}
             onClick={onStartMove}
             aria-label={`Move card ${title}`}
             ref={moveBtnRef}

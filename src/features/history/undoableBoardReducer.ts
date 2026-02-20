@@ -1,5 +1,5 @@
 import boardReducer from "../board/boardSlice";
-import { setSearchQuery } from "../board/boardSlice";
+import { setSearchQuery } from "../ui/uiSlice";
 import { createAction } from "@reduxjs/toolkit";
 import type { AnyAction } from "@reduxjs/toolkit";
 import type { BoardState } from "../board/boardSlice";
