@@ -19,6 +19,7 @@ import {
 } from "./boardSlice";
 import { getMovePayloadFromDrag } from "./dndHelpers";
 import type { RootState } from "../../store";
+import { clearStorage } from "../persistence/storage";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPencil,
@@ -314,6 +315,23 @@ export default function BoardPage() {
               aria-keyshortcuts="Control+Y Meta+Shift+Z"
             >
               Redo
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-ghost icon-btn"
+              onClick={() => {
+                // Temp confirm dialog until accessible dialog
+                const ok = window.confirm(
+                  "Reset board and clear offline saved data?",
+                );
+                if (!ok) return;
+
+                clearStorage();
+                window.location.reload();
+              }}
+            >
+              Reset
             </button>
           </div>
         </div>

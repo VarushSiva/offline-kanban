@@ -51,8 +51,12 @@ export function saveBoardPresentToStorage(
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn("Failed to save board state to localStorage", error);
-    }
+    console.warn("Failed to save board state to localStorage", error);
+  }
+}
+
+export function clearStorage(): void {
+  if (localStorage.getItem(STORAGE_KEY)) {
+    localStorage.removeItem(STORAGE_KEY);
   }
 }
