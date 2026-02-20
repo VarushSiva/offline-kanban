@@ -33,7 +33,15 @@ export function loadBoardPresentFromStorage(): BoardPresentState | null {
     const migrated = migratePersisted(parsed);
     if (!migrated) return null;
 
-    return migrated.boardPresent;
+    const present = migrated.boardPresent as any;
+
+    // Ignore old persisted searchQuery if exist
+    if ("searchQuery" in present) {
+      const { searchQuery: _ignored, ...rest } = present;
+      return rest;
+    }
+
+    return present;
   } catch {
     return null;
   }

@@ -17,7 +17,6 @@ export type BoardState = {
   columnsById: Record<Id, Column>;
   columnOrder: Id[];
   cardsById: Record<Id, Card>;
-  searchQuery: string;
 };
 
 const now = () => Date.now();
@@ -37,7 +36,6 @@ const initialState: BoardState = {
       updatedAt: now(),
     },
   },
-  searchQuery: "",
 };
 
 type AddColumnPayload = { title: string };
@@ -59,10 +57,6 @@ const boardSlice = createSlice({
   name: "board",
   initialState,
   reducers: {
-    setSearchQuery: (state, action: PayloadAction<string>) => {
-      state.searchQuery = action.payload;
-    },
-
     addColumn: (state, action: PayloadAction<AddColumnPayload>) => {
       const id = nanoid();
       state.columnsById[id] = { id, title: action.payload.title, cardIds: [] };
@@ -135,7 +129,6 @@ const boardSlice = createSlice({
 });
 
 export const {
-  setSearchQuery,
   addColumn,
   renameColumn,
   deleteColumn,

@@ -1,11 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { announce } from "../ui/uiSlice";
 import { useAppDispatch, useAppSelector } from "../../hooks";
-import {
-  selectColumns,
-  selectSearchQuery,
-  selectVisibleCardsForColumn,
-} from "./selectors";
+import { selectColumns, selectVisibleCardsForColumn } from "./selectors";
 import { redo, undo } from "../history/undoableBoardReducer";
 import {
   addCard,
@@ -13,10 +9,11 @@ import {
   deleteCard,
   deleteColumn,
   renameColumn,
-  setSearchQuery,
   updateCard,
   moveCard,
 } from "./boardSlice";
+import { selectSearchQuery } from "../ui/selectors";
+import { setSearchQuery } from "../ui/uiSlice";
 import { getMovePayloadFromDrag } from "./dndHelpers";
 import type { RootState } from "../../store";
 import { clearStorage } from "../persistence/storage";

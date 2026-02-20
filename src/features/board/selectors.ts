@@ -1,22 +1,26 @@
 import type { RootState } from "../../store";
+import { createSelector } from "@reduxjs/toolkit";
+import { selectSearchQuery } from "../ui/selectors";
 
 export const selectBoardPresent = (state: RootState) => state.board.present;
-export const selectSearchQuery = (state: RootState) =>
-  state.board.present.searchQuery;
-export const selectColumns = (state: RootState) => {
-  const { columnsById, columnOrder } = state.board.present;
-  return columnOrder.map((id) => columnsById[id]).filter(Boolean);
-};
 
-export const selectVisibleCardsForColumn =
-  (columnId: string) => (state: RootState) => {
-    const { columnsById, cardsById, searchQuery } = state.board.present;
-    const col = columnsById[columnId];
-    if (!col) return [];
+export const selectColumns = createSelector([selectBoardPresent], (present) => {
+  return present.columnOrder.map((id) => present.columnsById[id]);
+});
 
-    const query = searchQuery.trim().toLowerCase();
-    const cards = col.cardIds.map((id) => cardsById[id]).filter(Boolean);
+export const selectVisibleCardsForColumn = (columnId: string) =>
+  createSelector(
+    [selectBoardPresent, selectSearchQuery],
+    (present, searchQuery) => {
+      const col = present.columnsById[columnId];
+      if (!col) return [];
 
-    if (!query) return cards;
-    return cards.filter((card) => card.title.toLowerCase().includes(query));
-  };
+      const query = searchQuery.trim().toLowerCase();
+      const cards = col.cardIds
+        .map((id) => present.cardsById[id])
+        .filter(Boolean);
+
+      if (!query) return cards;
+      return cards.filter((card) => card.title.toLowerCase().includes(query));
+    },
+  );
